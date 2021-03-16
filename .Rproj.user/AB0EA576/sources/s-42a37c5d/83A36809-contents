@@ -1,0 +1,1159 @@
+###################################################################
+############ 代谢组批次效应移除算法（不使用Batch标签）########
+setwd("/home/stat-dengkui/stat-dengkui/小波批次课题结果/一维最大重叠离散小波变换")
+
+library(stringr)
+
+sample.infor<-read.csv("数据/sample.information.Amide.csv",header=T,stringsAsFactors = F)
+id<-read.csv("数据/id.csv",header=T,stringsAsFactors = F)
+
+Amide_stat<-read.csv("数据/原始数据/amide.csv",header=T,stringsAsFactors = F)
+Amide_stat<-Amide_stat[is.na(str_locate(Amide_stat$isotopes,"[M][\\+][0123456789]")[,1]),]
+
+
+#Amide_stat<-Amide_stat[,-1]
+#Amide.stat.baseInfor<-Amide_stat[,1:17]
+Amide_stat1<-Amide_stat[,-c(2:6)]
+rownames(Amide_stat1)<-Amide_stat1[,1]
+Amide_stat1<-Amide_stat1[,-1]
+Amide_stat_tran<-t(Amide_stat1)
+Amide_stat_tran<-as.data.frame(Amide_stat_tran)
+
+### 更改变量名
+Amide_stat_tran_QC<-Amide_stat_tran[str_sub(rownames(Amide_stat_tran),1,2)=="QC",]
+Amide_stat_tran_sample<-Amide_stat_tran[str_sub(rownames(Amide_stat_tran),1,2)!="QC",]
+
+rownames(Amide_stat_tran_sample)<-str_sub(rownames(Amide_stat_tran_sample),1,str_locate(rownames(Amide_stat_tran_sample),"_")[,1]-1)
+
+Amide_stat_tran<-rbind(Amide_stat_tran_QC,Amide_stat_tran_sample)
+
+Amide_stat_tran$name<-rownames(Amide_stat_tran)
+##与sample information 和ID号合并
+library(stringr)
+
+#更改sample information变量名格式
+sample.infor[,1][substr(sample.infor[,1],1,2)!="QC"]<-str_sub(sample.infor[,1][substr(sample.infor[,1],1,2)!="QC"],1,str_locate(sample.infor[,1][substr(sample.infor[,1],1,2)!="QC"],"_")[,1]-1)
+
+
+data_Amide_stat_merge<-base::merge(Amide_stat_tran,sample.infor,by.x="name",by.y="sample.name")
+
+data_Amide_stat_merge1<-base::merge(data_Amide_stat_merge,id,by.x="name",by.y="sample")
+
+data.Amide.stat<-data_Amide_stat_merge[,-c(6971:6974)] 
+data.Amide.stat<-data.Amide.stat[,-1]#含有QC的数据
+
+data.Amide.stat.sample<-data_Amide_stat_merge1[,-c(6971:6975)] 
+data.Amide.stat.sample<-data.Amide.stat.sample[,-1]  #不含QC的数据
+
+
+###### 将数据样本按检测进样顺序排列
+# 保存数据为R数据
+# data_output<-data_Amide_stat_merge[,c(1,6971:6974,2:6970)]
+# colnames(data_output)[-c(1:5)]<-paste("Var",1:6969,sep="")
+# Amide_data<-cbind(data_output[,c(1:5)],data_output[,-c(1:5)][,-unique(c(which(index_0),which(index_1)))])
+# save(Amide_data,file="/home/stat-dengkui/小波批次课题结果/一维最大重叠离散小波变换/数据/Amide_data.rdb")
+
+
+data.Amide.stat_order<-data.Amide.stat[order(data_Amide_stat_merge$injection.order),]
+
+data_Amide_stat_merge_order<-data_Amide_stat_merge[order(data_Amide_stat_merge$injection.order),]
+
+#### 去除最后一个批次数据
+data.Amide.stat_order <- data.Amide.stat_order[data_Amide_stat_merge_order$batch!=4,]
+data_Amide_stat_merge_order <- data_Amide_stat_merge_order[data_Amide_stat_merge_order$batch!=4,]
+
+
+# 样本和QC分开
+rownames(data.Amide.stat_order)<-data_Amide_stat_merge_order$name
+data.Amide.stat.order.QC<-data.Amide.stat_order[data_Amide_stat_merge_order$group=="QC",]
+data.Amide.stat.order.sample<-data.Amide.stat_order[data_Amide_stat_merge_order$group!="QC",]
+
+data_Amide_stat_merge_order_QC<-data_Amide_stat_merge_order[data_Amide_stat_merge_order$group=="QC",]
+data_Amide_stat_merge_order_sample<-data_Amide_stat_merge_order[data_Amide_stat_merge_order$group!="QC",]
+
+
+##### 去除全部为0的变量
+index_0<-apply(data.Amide.stat.order.QC,2,function(x) (sum(x==0)/length(x))>0.2)
+index_1<-apply(data.Amide.stat.order.sample,2,function(x) (sum(x==0)/length(x))>0.2)
+
+# index_0_batch1 <- apply(data.Amide.stat.order.QC[data_Amide_stat_merge_order_QC$batch==1,],2,function(x) (sum(x==0)/length(x))>0.2)
+# index_0_batch2 <- apply(data.Amide.stat.order.QC[data_Amide_stat_merge_order_QC$batch==1,],2,function(x) (sum(x==0)/length(x))>0.2)
+# index_0_batch3 <- apply(data.Amide.stat.order.QC[data_Amide_stat_merge_order_QC$batch==1,],2,function(x) (sum(x==0)/length(x))>0.2)
+# 
+# index_1_batch1 <- apply(data.Amide.stat.order.sample[data_Amide_stat_merge_order_sample$batch==1,],2,function(x) (sum(x==0)/length(x))>0.2)
+# index_1_batch2 <- apply(data.Amide.stat.order.sample[data_Amide_stat_merge_order_sample$batch==2,],2,function(x) (sum(x==0)/length(x))>0.2)
+# index_1_batch3 <- apply(data.Amide.stat.order.sample[data_Amide_stat_merge_order_sample$batch==3,],2,function(x) (sum(x==0)/length(x))>0.2)
+
+#index <- unique(c(which(index_0_batch1),which(index_0_batch2),which(index_0_batch3),which(index_1_batch1),which(index_1_batch2),which(index_1_batch3)))
+
+index <- unique(c(which(index_0),which(index_1)))
+
+data.Amide.stat.order.sample<-data.Amide.stat.order.sample[,-index]
+data.Amide.stat.order.QC<-data.Amide.stat.order.QC[,-index]
+data.Amide.stat_order<-data.Amide.stat_order[,-index]
+
+# ####### 去除QC中的异常值
+# 
+# a<-outlierHotelling(Data=data.Amide.stat.order.QC,referenceVector=batch_qc_Amide)
+
+
+### group batch分组
+data_Amide_stat_merge_order$group[data_Amide_stat_merge_order$group=="QC"]<-2
+group_zong_Amide<-as.numeric(data_Amide_stat_merge_order$group)
+batch_zong_Amide<-data_Amide_stat_merge_order$batch
+
+group_sample_Amide<-group_zong_Amide[group_zong_Amide!=2]
+batch_sample_Amide<-batch_zong_Amide[group_zong_Amide!=2]
+
+batch_qc_Amide<-batch_zong_Amide[group_zong_Amide==2]
+
+##### 针对于原始数据的各种评价指标
+## PCA得分图
+bitmap("WaveICA 2.0/结果/多个批次结果/PCA得分图/PCA得分图_original(group).tiff",type="jpeg",res=500)
+pca(data=data.Amide.stat_order,id=group_zong_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+bitmap("WaveICA 2.0/结果/多个批次结果/PCA得分图/PCA得分图_original(batch).tiff",type="jpeg",res=500)
+pca(data=data.Amide.stat_order,id=batch_zong_Amide,plot=2,label=c("Batch1","Batch2","Batch3"))
+dev.off()
+
+#### QC之间距离
+pc.original<-prcomp(data.Amide.stat_order,scale.=T)
+pc.original_select<-pc.original$x[group_zong_Amide==2,1:3]
+
+dist.original<-dist(pc.original_select,method ="euclidean")
+dist.original<-as.matrix(dist.original)
+sum(dist.original)/(74*74-74)
+
+##### 样品之间的距离
+pc.original_select<-pc.original$x[group_zong_Amide!=2,1:3]
+
+dist.original<-dist(pc.original_select,method ="euclidean")
+dist.original<-as.matrix(dist.original)
+sum(dist.original)/(568*568-568)
+
+
+## 筛变量
+univariate_original_Amide<-var_select(data=data.Amide.stat.order.sample,label=group_sample_Amide,t.test=F,Wilcox=F,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_original_Amide<-rownames(univariate_original_Amide[univariate_original_Amide$VIP>1&univariate_original_Amide$P.FDR<0.05,])
+
+
+## 判别
+#svm.model.Amide<-SVM_MODEL(X=data.Amide.stat.order.sample[,var_select_original_Amide],Y=group_sample_Amide,kernel="radial",kfold=5)
+
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_original <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.stat.order.sample[,var_select_original_Amide],Y=group_sample_Amide,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_original <- c(auc_svm_5fold_100times_original,AUC_Eachtime)
+  seed=seed+i
+}
+
+
+# ####
+# univariate_original_Amide_order<-univariate_original_Amide[order(univariate_original_Amide$VIP,decreasing=T),]
+# 
+# auc_zong_original_Amide<-c()
+# for (i in seq(50,1000,50)){
+#   cat(paste("###########################",i,"个变量####################\n"))
+#   var_select_original<-rownames(univariate_original_Amide_order)[1:i]
+#   svm.model.original<-SVM_MODEL(X=data.Amide.stat.order.sample[,var_select_original],Y=group_sample_Amide,kernel="radial",kfold=5)
+#   AUC<-svm.model.original$auc
+#   auc_zong_original_Amide<-c(auc_zong_original_Amide,AUC)
+# }
+
+############################ 批次间效应移除  #################
+######################### WaveICA_2.0 ###################
+library(waveslim)
+library(parallel)
+library(mgcv)
+level<-floor(log(nrow(data.Amide.stat_order),2))
+Injection_order <- c(1:nrow(data.Amide.stat_order))
+
+#### WaveICA_2.0
+data_wave2.0_reconstruct_Amide <- WaveICA_2.0(data=data.Amide.stat_order,Injection_Order=Injection_order,alpha=0,Cutoff=0.1,K=10)
+data_Amide_zong_wave2.0 <- data_wave2.0_reconstruct_Amide$data_wave
+
+
+data_Amide_sample_wave2.0 <- data_Amide_zong_wave2.0[group_zong_Amide!=2,]
+data_Amide_qc_wave2.0 <- data_Amide_zong_wave2.0[group_zong_Amide==2,]
+
+######### PCA得分图
+bitmap("WaveICA 2.0/结果/多个批次结果/PCA得分图/PCA得分图_WaveICA2.0(group).tiff",type="jpeg",res=500)
+pca_new(data=data_Amide_zong_wave2.0,id=group_zong_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+bitmap("WaveICA 2.0/结果/多个批次结果/PCA得分图/PCA得分图_WaveICA2.0(batch).tiff",type="jpeg",res=500)
+pca_new(data=data_Amide_zong_wave2.0,id=batch_zong_Amide,plot=2,label=c("Batch1","Batch2","Batch3"))
+dev.off()
+
+
+#### QC之间距离
+pc.WaveICA2.0<-prcomp(data_Amide_zong_wave2.0,scale.=T)
+pc.WaveICA2.0_select<-pc.WaveICA2.0$x[group_zong_Amide==2,1:3]
+pc.WaveICA2.0_select <- pc.WaveICA2.0_select[-c(1,nrow(pc.WaveICA2.0_select)),]
+
+dist.WaveICA2.0 <- dist(pc.WaveICA2.0_select,method ="euclidean")
+dist.WaveICA2.0<-as.matrix(dist.WaveICA2.0)
+sum(dist.WaveICA2.0)/(72*72-72)
+
+#### 样品之间距离
+pc.WaveICA2.0_select<-pc.WaveICA2.0$x[group_zong_Amide!=2,1:3]
+
+dist.WaveICA2.0 <-dist(pc.WaveICA2.0_select,method ="euclidean")
+dist.WaveICA2.0<-as.matrix(dist.WaveICA2.0)
+sum(dist.WaveICA2.0)/(568*568-568)
+
+
+### 筛变量
+univariate_wave2.0_Amide <-var_select(data=data_Amide_sample_wave2.0,label=group_sample_Amide,t.test=F,Wilcox=F,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_wave2.0_Amide<-rownames(univariate_wave2.0_Amide[univariate_wave2.0_Amide$VIP>1&univariate_wave2.0_Amide$P.FDR<0.05,])
+
+## 判别
+#svm.model.wave2.0.Amide<-SVM_MODEL(X=data_Amide_sample_wave2.0[,var_select_wave2.0_Amide],Y=group_sample_Amide,kernel="radial",kfold=5)
+
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_WaveICA2.0 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data_Amide_sample_wave2.0[,var_select_wave2.0_Amide],Y=group_sample_Amide,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_WaveICA2.0 <- c(auc_svm_5fold_100times_WaveICA2.0,AUC_Eachtime)
+  seed=seed+i
+}
+
+
+## QC相关系数
+corr_wave2.0_Amide<-correlation(data.Amide.stat.order.QC,data_Amide_qc_wave2.0,method="pearson")
+mean(corr_wave2.0_Amide$V3)
+mean(corr_wave2.0_Amide$V4)
+
+######################### WaveICA ###################
+library(waveslim)
+library(parallel)
+
+level<-floor(log(nrow(data.Amide.stat_order),2))
+Injection_order <- c(1:nrow(data.Amide.stat_order))
+
+#### WaveICA
+data_wave_reconstruct_Amide<-WaveICA(data=data.Amide.stat_order,wf="haar",batch=batch_zong_Amide,group=group_zong_Amide,K=20,t=0.05,t2=0.05,alpha=0)
+data_Amide_zong_wave <- data_wave_reconstruct_Amide$data_wave
+
+
+data_Amide_sample_wave <- data_Amide_zong_wave[group_zong_Amide!=2,]
+data_Amide_qc_wave <- data_Amide_zong_wave[group_zong_Amide==2,]
+
+######### PCA得分图
+bitmap("WaveICA 2.0/结果/多个批次结果/PCA得分图/PCA得分图_WaveICA(group).tiff",type="jpeg",res=500)
+pca_new(data=data_Amide_zong_wave,id=group_zong_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+bitmap("WaveICA 2.0/结果/多个批次结果/PCA得分图/PCA得分图_WaveICA(batch).tiff",type="jpeg",res=500)
+pca_new(data=data_Amide_zong_wave,id=batch_zong_Amide,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+#### QC之间距离
+pc.WaveICA<-prcomp(data_Amide_zong_wave,scale.=T)
+pc.WaveICA_select<-pc.WaveICA$x[group_zong_Amide==2,1:3]
+pc.WaveICA_select <- pc.WaveICA_select[-c(1,nrow(pc.WaveICA_select)),]
+
+dist.WaveICA <- dist(pc.WaveICA_select,method ="euclidean")
+dist.WaveICA<-as.matrix(dist.WaveICA)
+sum(dist.WaveICA)/(72*72-72)
+
+#### 样品之间距离
+pc.WaveICA_select<-pc.WaveICA$x[group_zong_Amide!=2,1:3]
+dist.WaveICA <-dist(pc.WaveICA_select,method ="euclidean")
+dist.WaveICA<-as.matrix(dist.WaveICA)
+sum(dist.WaveICA)/(568*568-568)
+
+
+
+### 筛变量
+univariate_wave_Amide <-var_select(data=data_Amide_sample_wave,label=group_sample_Amide,t.test=F,Wilcox=F,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_wave_Amide<-rownames(univariate_wave_Amide[univariate_wave_Amide$VIP>1&univariate_wave_Amide$P.FDR<0.05,])
+
+## 判别
+#svm.model.wave.Amide<-SVM_MODEL(X=data_Amide_sample_wave[,var_select_wave_Amide],Y=group_sample_Amide,kernel="radial",kfold=5)
+
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_WaveICA <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data_Amide_sample_wave[,var_select_wave_Amide],Y=group_sample_Amide,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_WaveICA <- c(auc_svm_5fold_100times_WaveICA,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_wave_Amide<-correlation(data.Amide.stat.order.QC,data_Amide_qc_wave,method="pearson")
+mean(corr_wave_Amide$V3)
+mean(corr_wave_Amide$V4)
+
+############################################################################
+############################ 单个批次效应移除效果 ########################
+##################### 单个批次数据的批次效应移除: Batch1 ##############
+############## 原始数据
+data.Amide.stat_order_batch1 <- data.Amide.stat_order[batch_zong_Amide==1,]
+group_batch1_Amide <- group_zong_Amide[batch_zong_Amide==1]
+Injection_order_batch1 <- c(1:nrow(data.Amide.stat_order_batch1))
+
+# 分离出生物学样本
+group_batch1_Amide_sample <- group_batch1_Amide[group_batch1_Amide!=2]
+data.Amide.stat_order_batch1_sample <- data.Amide.stat_order_batch1[group_batch1_Amide!=2,]
+data.Amide.stat_order_batch1_QC <- data.Amide.stat_order_batch1[group_batch1_Amide==2,]
+
+
+####### PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch1/PCA得分图/PCA得分图_Batch1_Original.tiff",type="jpeg",res=500)
+pca(data=data.Amide.stat_order_batch1,id=group_batch1_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+#### QC之间距离
+pc.Original_batch1<-prcomp(data.Amide.stat_order_batch1,scale.=T)
+pc.Original_batch1_select<-pc.Original_batch1$x[group_batch1_Amide==2,1:3]
+
+dist.Original.Batch1 <- dist(pc.Original_batch1_select,method ="euclidean")
+dist.Original.Batch1<-as.matrix(dist.Original.Batch1)
+sum(dist.Original.Batch1)/(25*25-25)
+
+#### 样本之间距离
+pc.Original_batch1_select<-pc.Original_batch1$x[group_batch1_Amide!=2,1:3]
+
+dist.Original.Batch1 <- dist(pc.Original_batch1_select,method ="euclidean")
+dist.Original.Batch1<-as.matrix(dist.Original.Batch1)
+sum(dist.Original.Batch1)/(192*192-192)
+
+### 筛变量
+univariate_Original_Amide_Batch1 <-var_select(data=data.Amide.stat_order_batch1_sample,label=group_batch1_Amide_sample,t.test=F,Wilcox=F,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_Original_Amide_Batch1<-rownames(univariate_Original_Amide_Batch1[univariate_Original_Amide_Batch1$VIP>1&univariate_Original_Amide_Batch1$P.FDR<0.05,])
+
+### 判别
+#svm.model.original.Amide.Batch1<-SVM_MODEL(X=data.Amide.stat_order_batch1_sample[,var_select_Original_Amide_Batch1],Y=group_batch1_Amide_sample,kernel="radial",kfold=5)
+
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_Original_Batch1 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.stat_order_batch1_sample[,var_select_Original_Amide_Batch1],Y=group_batch1_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_Original_Batch1 <- c(auc_svm_5fold_100times_Original_Batch1,AUC_Eachtime)
+  seed=seed+i
+}
+
+###############################
+################# WaveICA_2.0
+data_wave2.0_reconstruct_Amide_batch1 <- WaveICA_2.0(data=data.Amide.stat_order_batch1,Injection_Order=Injection_order_batch1,alpha=0,Cutoff=0.1,K=10)
+data_Amide_batch1_wave2.0 <- data_wave2.0_reconstruct_Amide_batch1$data_wave
+
+data_Amide_batch1_wave2.0_QC <- data_Amide_batch1_wave2.0[group_batch1_Amide==2,]
+data_Amide_batch1_wave2.0_sample <- data_Amide_batch1_wave2.0[group_batch1_Amide!=2,]
+
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch1/PCA得分图/PCA得分图_Batch1_WaveICA2.0.tiff",type="jpeg",res=500)
+pca_new(data=data_Amide_batch1_wave2.0,id=group_batch1_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+
+#### QC之间距离
+pc.WaveICA2.0_batch1<-prcomp(data_Amide_batch1_wave2.0,scale.=T)
+pc.WaveICA2.0_batch1_select<-pc.WaveICA2.0_batch1$x[group_batch1_Amide==2,1:3]
+pc.WaveICA2.0_batch1_select <- pc.WaveICA2.0_batch1_select[-c(1,nrow(pc.WaveICA2.0_batch1_select)),]
+
+dist.WaveICA2.0.Batch1 <- dist(pc.WaveICA2.0_batch1_select,method ="euclidean")
+dist.WaveICA2.0.Batch1<-as.matrix(dist.WaveICA2.0.Batch1)
+sum(dist.WaveICA2.0.Batch1)/(23*23-23)
+
+#### 样本之间距离
+pc.WaveICA2.0_batch1_select<-pc.WaveICA2.0_batch1$x[group_batch1_Amide!=2,1:3]
+
+dist.WaveICA2.0.Batch1 <- dist(pc.WaveICA2.0_batch1_select,method ="euclidean")
+dist.WaveICA2.0.Batch1<-as.matrix(dist.WaveICA2.0.Batch1)
+sum(dist.WaveICA2.0.Batch1)/(192*192-192)
+
+
+### 筛变量
+univariate_wave2.0_Amide_Batch1 <-var_select(data=data_Amide_batch1_wave2.0_sample,label=group_batch1_Amide_sample,t.test=F,Wilcox=F,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_wave2.0_Amide_Batch1<-rownames(univariate_wave2.0_Amide_Batch1[univariate_wave2.0_Amide_Batch1$VIP>1&univariate_wave2.0_Amide_Batch1$P.FDR<0.05,])
+
+### 判别
+#svm.model.wave2.0.Amide.Batch1<-SVM_MODEL(X=data_Amide_batch1_wave2.0_sample[,var_select_wave2.0_Amide_Batch1],Y=group_batch1_Amide_sample,kernel="radial",kfold=5)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_WaveICA2.0_Batch1 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data_Amide_batch1_wave2.0_sample[,var_select_wave2.0_Amide_Batch1],Y=group_batch1_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_WaveICA2.0_Batch1 <- c(auc_svm_5fold_100times_WaveICA2.0_Batch1,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_wave2.0_Amide_Batch1<-correlation(data.Amide.stat_order_batch1_QC,data_Amide_batch1_wave2.0_QC,method="pearson")
+mean(corr_wave2.0_Amide_Batch1$V3)
+mean(corr_wave2.0_Amide_Batch1$V4)
+
+
+###############################
+################# QC-RLSC
+data_Amide_stat_merge_order_batch1 <- data_Amide_stat_merge_order[data_Amide_stat_merge_order$batch==1,]
+injection.order.Amide.batch1<-data_Amide_stat_merge_order_batch1$injection.order
+injection.order.qc.Amide.batch1<-injection.order.Amide.batch1[data_Amide_stat_merge_order_batch1$group==2]
+injection.order.sample.Amide.batch1<-injection.order.Amide.batch1[data_Amide_stat_merge_order_batch1$group!=2]
+
+
+data.Amide.batch1.QC.RLSC<-matrix(NA,nrow(data.Amide.stat_order_batch1_QC),ncol(data.Amide.stat_order_batch1_QC))
+data.Amide.batch1.sample.RLSC<-matrix(NA,nrow(data.Amide.stat_order_batch1_sample),ncol(data.Amide.stat_order_batch1_sample))
+for (i in (1:ncol(data.Amide.batch1.QC.RLSC))){
+  cat(paste("###########",i,"##############\n"))
+  set.seed(1234)
+  library(e1071)
+  QC.order<-injection.order.qc.Amide.batch1
+  para <- cvMSE(data.Amide.stat_order_batch1_QC[,i],QC.order, begin1 = 0.5,end1 = 1,step1 = 0.1)
+  loess.reg <-loess(data.Amide.stat_order_batch1_QC[,i] ~ QC.order,span = para[2],degree = para[1])
+ # loess.reg <-loess(data.Amide.stat_order_batch1_QC[,i] ~ QC.order)
+  
+  predict.QC <- summary(loess.reg)$fitted
+  
+  data.Amide.batch1.QC.RLSC[,i]<- data.Amide.stat_order_batch1_QC[,i]-predict.QC+median(predict.QC,na.rm=T)
+  
+  predict.sample <-predict(loess.reg,data.frame(QC.order = c(injection.order.sample.Amide.batch1)))
+  
+  
+  data.Amide.batch1.sample.RLSC[,i] <- data.Amide.stat_order_batch1_sample[,i]-predict.sample+median(predict.sample,na.rm=T)
+}
+
+colnames(data.Amide.batch1.sample.RLSC)<-colnames(data.Amide.stat_order_batch1_sample)
+colnames(data.Amide.batch1.QC.RLSC)<-colnames(data.Amide.stat_order_batch1_QC)
+
+
+data.Amide.batch1.zong.RLSC<-rbind(data.Amide.batch1.sample.RLSC,data.Amide.batch1.QC.RLSC)
+
+group_zong_RLSC_Amide_batch1<-c(group_batch1_Amide_sample,rep(2,nrow(data.Amide.batch1.QC.RLSC)))
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch1/PCA得分图/PCA得分图_Batch1_QCRLSC.tiff",type="jpeg",res=500)
+pca(data=data.Amide.batch1.zong.RLSC,id=group_zong_RLSC_Amide_batch1+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+#### QC之间距离
+pc.QCRLSC_batch1<-prcomp(data.Amide.batch1.zong.RLSC,scale.=T)
+pc.QCRLSC_batch1_select<-pc.QCRLSC_batch1$x[group_zong_RLSC_Amide_batch1==2,1:3]
+
+dist.QCRLSC.Batch1 <- dist(pc.QCRLSC_batch1_select,method ="euclidean")
+dist.QCRLSC.Batch1<-as.matrix(dist.QCRLSC.Batch1)
+sum(dist.QCRLSC.Batch1)/(25*25-25)
+
+#### 样本之间距离
+pc.QCRLSC_batch1_select<-pc.QCRLSC_batch1$x[group_zong_RLSC_Amide_batch1!=2,1:3]
+
+dist.QCRLSC.Batch1 <- dist(pc.QCRLSC_batch1_select,method ="euclidean")
+dist.QCRLSC.Batch1<-as.matrix(dist.QCRLSC.Batch1)
+sum(dist.QCRLSC.Batch1)/(192*192-192)
+
+
+### 筛变量
+univariate_QCRLSC_Amide_Batch1 <-var_select(data=data.Amide.batch1.sample.RLSC,label=group_batch1_Amide_sample,t.test=F,Wilcox=F,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_QCRLSC_Amide_Batch1<-rownames(univariate_QCRLSC_Amide_Batch1[univariate_QCRLSC_Amide_Batch1$VIP>1&univariate_QCRLSC_Amide_Batch1$P.FDR<0.05,])
+
+
+### 判别
+#svm.model.QCRLSC.Amide.Batch1<-SVM_MODEL(X=data.Amide.batch1.sample.RLSC[,var_select_QCRLSC_Amide_Batch1],Y=group_batch1_Amide_sample,kernel="radial",kfold=5,seed=123)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_QCRLSC_Batch1 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.batch1.sample.RLSC[,var_select_QCRLSC_Amide_Batch1],Y=group_batch1_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_QCRLSC_Batch1 <- c(auc_svm_5fold_100times_QCRLSC_Batch1,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_QCRLSC_Amide_Batch1<-correlation(data.Amide.stat_order_batch1_QC,data.Amide.batch1.QC.RLSC,method="pearson")
+mean(corr_QCRLSC_Amide_Batch1$V3)
+mean(corr_QCRLSC_Amide_Batch1$V4)
+
+
+##################################
+################# QC-SVR
+data_Amide_stat_merge_order_batch1 <- data_Amide_stat_merge_order[data_Amide_stat_merge_order$batch==1,]
+injection.order.Amide.batch1<-data_Amide_stat_merge_order_batch1$injection.order
+injection.order.qc.Amide.batch1<-injection.order.Amide.batch1[data_Amide_stat_merge_order_batch1$group==2]
+injection.order.sample.Amide.batch1<-injection.order.Amide.batch1[data_Amide_stat_merge_order_batch1$group!=2]
+
+
+data.Amide.batch1.QC.SVR<-matrix(NA,nrow(data.Amide.stat_order_batch1_QC),ncol(data.Amide.stat_order_batch1_QC))
+data.Amide.batch1.sample.SVR<-matrix(NA,nrow(data.Amide.stat_order_batch1_sample),ncol(data.Amide.stat_order_batch1_sample))
+for (i in (1:ncol(data.Amide.batch1.QC.SVR))){
+  cat(paste("###########",i,"##############\n"))
+  set.seed(1234)
+  library(e1071)
+  QC.order<-injection.order.qc.Amide.batch1
+  
+  qc.temp<-data.Amide.stat_order_batch1_QC[,i]
+  
+    #qc.temp<-log(data.Amide.stat_order_batch1_QC[,i]+1,base=2)
+    # epsilon<-0.075*median(qc.temp)
+    # C=quantile(qc.temp,0.9,na.rm=T)-quantile(qc.temp,0.1,na.rm=T)
+    # try(model.tune<-tune.svm(x=QC.order,y=qc.temp,epsilon=epsilon,cost=C,gamma=2^(-3:6),kernel ="radial"),silent=T)
+    # best<-model.tune$best.parameters
+    # best.gamma<-best[1]
+    svr.reg <- e1071::svm(x=QC.order,y=qc.temp,kernel ="radial")
+    predict.QC <- summary(svr.reg)$fitted
+  
+  
+  data.Amide.batch1.QC.SVR[,i]<- qc.temp-predict.QC+median(predict.QC,na.rm=T)
+  
+  predict.sample <- predict(svr.reg,injection.order.sample.Amide.batch1)
+
+  
+  data.Amide.batch1.sample.SVR[,i] <- data.Amide.stat_order_batch1_sample[,i]-predict.sample+median(predict.sample,na.rm=T)
+}
+
+colnames(data.Amide.batch1.sample.SVR)<-colnames(data.Amide.stat_order_batch1_sample)
+colnames(data.Amide.batch1.QC.SVR)<-colnames(data.Amide.stat_order_batch1_QC)
+
+
+data.Amide.batch1.zong.SVR<-rbind(data.Amide.batch1.sample.SVR,data.Amide.batch1.QC.SVR)
+
+group_zong_SVR_Amide_batch1<-c(group_batch1_Amide_sample,rep(2,nrow(data.Amide.batch1.QC.SVR)))
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch1/PCA得分图/PCA得分图_Batch1_QCSVR.tiff",type="jpeg",res=500)
+pca(data=data.Amide.batch1.zong.SVR,id=group_zong_SVR_Amide_batch1+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+#### QC之间距离
+pc.QCSVR_batch1<-prcomp(data.Amide.batch1.zong.SVR,scale.=T)
+pc.QCSVR_batch1_select<-pc.QCSVR_batch1$x[group_zong_SVR_Amide_batch1==2,1:3]
+
+dist.QCSVR.Batch1 <- dist(pc.QCSVR_batch1_select,method ="euclidean")
+dist.QCSVR.Batch1<-as.matrix(dist.QCSVR.Batch1)
+sum(dist.QCSVR.Batch1)/(25*25-25)
+
+#### 样本之间距离
+pc.QCSVR_batch1_select<-pc.QCSVR_batch1$x[group_zong_SVR_Amide_batch1!=2,1:3]
+
+dist.QCSVR.Batch1 <- dist(pc.QCSVR_batch1_select,method ="euclidean")
+dist.QCSVR.Batch1<-as.matrix(dist.QCSVR.Batch1)
+sum(dist.QCSVR.Batch1)/(192*192-192)
+
+
+### 筛变量
+univariate_QCSVR_Amide_Batch1 <-var_select(data=data.Amide.batch1.sample.SVR,label=group_batch1_Amide_sample,t.test=F,Wilcox=F,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_QCSVR_Amide_Batch1<-rownames(univariate_QCSVR_Amide_Batch1[univariate_QCSVR_Amide_Batch1$VIP>1&univariate_QCSVR_Amide_Batch1$P.FDR<0.05,])
+
+
+### 判别
+#svm.model.QCSVR.Amide.Batch1<-SVM_MODEL(X=data.Amide.batch1.sample.SVR[,var_select_QCSVR_Amide_Batch1],Y=group_batch1_Amide_sample,kernel="radial",kfold=5,seed=123)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_QCSVR_Batch1 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.batch1.sample.SVR[,var_select_QCSVR_Amide_Batch1],Y=group_batch1_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_QCSVR_Batch1 <- c(auc_svm_5fold_100times_QCSVR_Batch1,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_QCSVR_Amide_Batch1<-correlation(data.Amide.stat_order_batch1_QC,data.Amide.batch1.QC.SVR,method="pearson")
+mean(corr_QCSVR_Amide_Batch1$V3)
+mean(corr_QCSVR_Amide_Batch1$V4)
+
+
+
+#########################################################################
+############### 单个批次数据的批次效应移除: Batch2  #############
+############## 原始数据
+data.Amide.stat_order_batch2 <- data.Amide.stat_order[batch_zong_Amide==2,]
+group_batch2_Amide <- group_zong_Amide[batch_zong_Amide==2]
+Injection_order_batch2 <- c(1:nrow(data.Amide.stat_order_batch2))
+
+# 分离出生物学样本
+group_batch2_Amide_sample <- group_batch2_Amide[group_batch2_Amide!=2]
+data.Amide.stat_order_batch2_sample <- data.Amide.stat_order_batch2[group_batch2_Amide!=2,]
+data.Amide.stat_order_batch2_QC <- data.Amide.stat_order_batch2[group_batch2_Amide==2,]
+
+
+####### PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch2/PCA得分图/PCA得分图_Batch2_Original.tiff",type="jpeg",res=500)
+pca(data=data.Amide.stat_order_batch2,id=group_batch2_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+#### QC之间距离
+pc.Original_batch2<-prcomp(data.Amide.stat_order_batch2,scale.=T)
+pc.Original_batch2_select<-pc.Original_batch2$x[group_batch2_Amide==2,1:3]
+
+dist.Original.Batch2 <- dist(pc.Original_batch2_select,method ="euclidean")
+dist.Original.Batch2<-as.matrix(dist.Original.Batch2)
+sum(dist.Original.Batch2)/(25*25-25)
+
+#### 样本之间距离
+pc.Original_batch2_select<-pc.Original_batch2$x[group_batch2_Amide!=2,1:3]
+
+dist.Original.Batch2 <- dist(pc.Original_batch2_select,method ="euclidean")
+dist.Original.Batch2<-as.matrix(dist.Original.Batch2)
+sum(dist.Original.Batch2)/(192*192-192)
+
+### 筛变量
+univariate_Original_Amide_Batch2 <-var_select(data=data.Amide.stat_order_batch2_sample,label=group_batch2_Amide_sample,t.test=F,Wilcox=T,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_Original_Amide_Batch2<-rownames(univariate_Original_Amide_Batch2[univariate_Original_Amide_Batch2$VIP>1&univariate_Original_Amide_Batch2$P_wilcox<0.05,])
+
+### 判别
+#svm.model.original.Amide.Batch2<-SVM_MODEL(X=data.Amide.stat_order_batch2_sample[,var_select_Original_Amide_Batch2],Y=group_batch2_Amide_sample,kernel="radial",kfold=5)
+
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_Original_Batch2 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.stat_order_batch2_sample[,var_select_Original_Amide_Batch2],Y=group_batch2_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_Original_Batch2 <- c(auc_svm_5fold_100times_Original_Batch2,AUC_Eachtime)
+  seed=seed+i
+}
+
+###############################
+################# WaveICA_2.0
+data_wave2.0_reconstruct_Amide_batch2 <- WaveICA_2.0(data=data.Amide.stat_order_batch2,Injection_Order=Injection_order_batch2,alpha=0,Cutoff=0.1,K=10)
+data_Amide_batch2_wave2.0 <- data_wave2.0_reconstruct_Amide_batch2$data_wave
+
+data_Amide_batch2_wave2.0_QC <- data_Amide_batch2_wave2.0[group_batch2_Amide==2,]
+data_Amide_batch2_wave2.0_sample <- data_Amide_batch2_wave2.0[group_batch2_Amide!=2,]
+
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch2/PCA得分图/PCA得分图_Batch2_WaveICA2.0.tiff",type="jpeg",res=500)
+pca_new(data=data_Amide_batch2_wave2.0,id=group_batch2_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+
+
+#### QC之间距离
+pc.WaveICA2.0_batch2<-prcomp(data_Amide_batch2_wave2.0,scale.=T)
+pc.WaveICA2.0_batch2_select<-pc.WaveICA2.0_batch2$x[group_batch2_Amide==2,1:3]
+pc.WaveICA2.0_batch2_select <- pc.WaveICA2.0_batch2_select[-c(1,nrow(pc.WaveICA2.0_batch2_select)),]
+
+dist.WaveICA2.0.Batch2 <- dist(pc.WaveICA2.0_batch2_select,method ="euclidean")
+dist.WaveICA2.0.Batch2<-as.matrix(dist.WaveICA2.0.Batch2)
+sum(dist.WaveICA2.0.Batch2)/(23*23-23)
+
+#### 样本之间距离
+pc.WaveICA2.0_batch2_select<-pc.WaveICA2.0_batch2$x[group_batch2_Amide!=2,1:3]
+
+dist.WaveICA2.0.Batch2 <- dist(pc.WaveICA2.0_batch2_select,method ="euclidean")
+dist.WaveICA2.0.Batch2<-as.matrix(dist.WaveICA2.0.Batch2)
+sum(dist.WaveICA2.0.Batch2)/(192*192-192)
+
+
+### 筛变量
+univariate_wave2.0_Amide_Batch2 <-var_select(data=data_Amide_batch2_wave2.0_sample,label=group_batch2_Amide_sample,t.test=F,Wilcox=T,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_wave2.0_Amide_Batch2<-rownames(univariate_wave2.0_Amide_Batch2[univariate_wave2.0_Amide_Batch2$VIP>1 & univariate_wave2.0_Amide_Batch2$P_wilcox<0.05,])
+
+### 判别
+#svm.model.wave2.0.Amide.Batch2<-SVM_MODEL(X=data_Amide_batch2_wave2.0_sample[,var_select_wave2.0_Amide_Batch2],Y=group_batch2_Amide_sample,kernel="radial",kfold=5)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_WaveICA2.0_Batch2 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data_Amide_batch2_wave2.0_sample[,var_select_wave2.0_Amide_Batch2],Y=group_batch2_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_WaveICA2.0_Batch2 <- c(auc_svm_5fold_100times_WaveICA2.0_Batch2,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_wave2.0_Amide_Batch2<-correlation(data.Amide.stat_order_batch2_QC,data_Amide_batch2_wave2.0_QC,method="pearson")
+mean(corr_wave2.0_Amide_Batch2$V3)
+mean(corr_wave2.0_Amide_Batch2$V4)
+
+
+###############################
+################# QC-RLSC
+data_Amide_stat_merge_order_batch2 <- data_Amide_stat_merge_order[data_Amide_stat_merge_order$batch==2,]
+injection.order.Amide.batch2<-data_Amide_stat_merge_order_batch2$injection.order
+injection.order.qc.Amide.batch2<-injection.order.Amide.batch2[data_Amide_stat_merge_order_batch2$group==2]
+injection.order.sample.Amide.batch2<-injection.order.Amide.batch2[data_Amide_stat_merge_order_batch2$group!=2]
+
+
+data.Amide.batch2.QC.RLSC<-matrix(NA,nrow(data.Amide.stat_order_batch2_QC),ncol(data.Amide.stat_order_batch2_QC))
+data.Amide.batch2.sample.RLSC<-matrix(NA,nrow(data.Amide.stat_order_batch2_sample),ncol(data.Amide.stat_order_batch2_sample))
+for (i in (1:ncol(data.Amide.batch2.QC.RLSC))){
+  cat(paste("###########",i,"##############\n"))
+  set.seed(1234)
+  library(e1071)
+  QC.order<-injection.order.qc.Amide.batch2
+  para <- cvMSE(data.Amide.stat_order_batch2_QC[,i],QC.order, begin1 = 0.5,end1 = 1,step1 = 0.1)
+  loess.reg <-loess(data.Amide.stat_order_batch2_QC[,i] ~ QC.order,span = para[2],degree = para[1])
+  #loess.reg <-loess(data.Amide.stat_order_batch2_QC[,i] ~ QC.order)
+  
+  predict.QC <- summary(loess.reg)$fitted
+  
+  data.Amide.batch2.QC.RLSC[,i]<- data.Amide.stat_order_batch2_QC[,i]-predict.QC+median(predict.QC,na.rm=T)
+  
+  predict.sample <-predict(loess.reg,data.frame(QC.order = c(injection.order.sample.Amide.batch2)))
+  
+  
+  data.Amide.batch2.sample.RLSC[,i] <- data.Amide.stat_order_batch2_sample[,i]-predict.sample+median(predict.sample,na.rm=T)
+}
+
+colnames(data.Amide.batch2.sample.RLSC)<-colnames(data.Amide.stat_order_batch2_sample)
+colnames(data.Amide.batch2.QC.RLSC)<-colnames(data.Amide.stat_order_batch2_QC)
+
+
+data.Amide.batch2.zong.RLSC<-rbind(data.Amide.batch2.sample.RLSC,data.Amide.batch2.QC.RLSC)
+
+group_zong_RLSC_Amide_batch2<-c(group_batch2_Amide_sample,rep(2,nrow(data.Amide.batch2.QC.RLSC)))
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch2/PCA得分图/PCA得分图_Batch2_QCRLSC.tiff",type="jpeg",res=500)
+pca(data=data.Amide.batch2.zong.RLSC,id=group_zong_RLSC_Amide_batch2+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+#### QC之间距离
+pc.QCRLSC_batch2<-prcomp(data.Amide.batch2.zong.RLSC,scale.=T)
+pc.QCRLSC_batch2_select<-pc.QCRLSC_batch2$x[group_zong_RLSC_Amide_batch2==2,1:3]
+
+dist.QCRLSC.Batch2 <- dist(pc.QCRLSC_batch2_select,method ="euclidean")
+dist.QCRLSC.Batch2<-as.matrix(dist.QCRLSC.Batch2)
+sum(dist.QCRLSC.Batch2)/(25*25-25)
+
+#### 样本之间距离
+pc.QCRLSC_batch2_select<-pc.QCRLSC_batch2$x[group_zong_RLSC_Amide_batch2!=2,1:3]
+
+dist.QCRLSC.Batch2 <- dist(pc.QCRLSC_batch2_select,method ="euclidean")
+dist.QCRLSC.Batch2<-as.matrix(dist.QCRLSC.Batch2)
+sum(dist.QCRLSC.Batch2)/(192*192-192)
+
+
+### 筛变量
+univariate_QCRLSC_Amide_Batch2 <-var_select(data=data.Amide.batch2.sample.RLSC,label=group_batch2_Amide_sample,t.test=F,Wilcox=T,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_QCRLSC_Amide_Batch2<-rownames(univariate_QCRLSC_Amide_Batch2[which(univariate_QCRLSC_Amide_Batch2$VIP>1&univariate_QCRLSC_Amide_Batch2$P_wilcox<0.05),])
+
+
+### 判别
+svm.model.QCRLSC.Amide.Batch2<-SVM_MODEL(X=data.Amide.batch2.sample.RLSC[,var_select_QCRLSC_Amide_Batch2],Y=group_batch2_Amide_sample,kernel="radial",kfold=5)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_QCRLSC_Batch2 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.batch2.sample.RLSC[,var_select_QCRLSC_Amide_Batch2],Y=group_batch2_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_QCRLSC_Batch2 <- c(auc_svm_5fold_100times_QCRLSC_Batch2,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_QCRLSC_Amide_Batch2<-correlation(data.Amide.stat_order_batch2_QC,data.Amide.batch2.QC.RLSC,method="pearson")
+mean(corr_QCRLSC_Amide_Batch2$V3)
+mean(corr_QCRLSC_Amide_Batch2$V4)
+
+
+##################################
+################# QC-SVR
+data_Amide_stat_merge_order_batch2 <- data_Amide_stat_merge_order[data_Amide_stat_merge_order$batch==2,]
+injection.order.Amide.batch2<-data_Amide_stat_merge_order_batch2$injection.order
+injection.order.qc.Amide.batch2<-injection.order.Amide.batch2[data_Amide_stat_merge_order_batch2$group==2]
+injection.order.sample.Amide.batch2<-injection.order.Amide.batch2[data_Amide_stat_merge_order_batch2$group!=2]
+
+
+data.Amide.batch2.QC.SVR<-matrix(NA,nrow(data.Amide.stat_order_batch2_QC),ncol(data.Amide.stat_order_batch2_QC))
+data.Amide.batch2.sample.SVR<-matrix(NA,nrow(data.Amide.stat_order_batch2_sample),ncol(data.Amide.stat_order_batch2_sample))
+for (i in (1:ncol(data.Amide.batch2.QC.SVR))){
+  cat(paste("###########",i,"##############\n"))
+  set.seed(1234)
+  library(e1071)
+  QC.order<-injection.order.qc.Amide.batch2
+  
+  qc.temp<-data.Amide.stat_order_batch2_QC[,i]
+  
+  #qc.temp<-log(data.Amide.stat_order_batch2_QC[,i]+1,base=2)
+  # epsilon<-0.075*median(qc.temp)
+  # C=quantile(qc.temp,0.9,na.rm=T)-quantile(qc.temp,0.1,na.rm=T)
+  # try(model.tune<-tune.svm(x=QC.order,y=qc.temp,epsilon=epsilon,cost=C,gamma=2^(-3:6),kernel ="radial"),silent=T)
+  # best<-model.tune$best.parameters
+  # best.gamma<-best[1]
+  svr.reg <- e1071::svm(x=QC.order,y=qc.temp,kernel ="radial")
+  predict.QC <- summary(svr.reg)$fitted
+  
+  
+  data.Amide.batch2.QC.SVR[,i]<- qc.temp-predict.QC+median(predict.QC,na.rm=T)
+  
+  predict.sample <- predict(svr.reg,injection.order.sample.Amide.batch2)
+  
+  
+  data.Amide.batch2.sample.SVR[,i] <- data.Amide.stat_order_batch2_sample[,i]-predict.sample+median(predict.sample,na.rm=T)
+}
+
+colnames(data.Amide.batch2.sample.SVR)<-colnames(data.Amide.stat_order_batch2_sample)
+colnames(data.Amide.batch2.QC.SVR)<-colnames(data.Amide.stat_order_batch2_QC)
+
+
+data.Amide.batch2.zong.SVR<-rbind(data.Amide.batch2.sample.SVR,data.Amide.batch2.QC.SVR)
+
+group_zong_SVR_Amide_batch2<-c(group_batch2_Amide_sample,rep(2,nrow(data.Amide.batch2.QC.SVR)))
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch2/PCA得分图/PCA得分图_Batch2_QCSVR.tiff",type="jpeg",res=500)
+pca(data=data.Amide.batch2.zong.SVR,id=group_zong_SVR_Amide_batch2+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+#### QC之间距离
+pc.QCSVR_batch2<-prcomp(data.Amide.batch2.zong.SVR,scale.=T)
+pc.QCSVR_batch2_select<-pc.QCSVR_batch2$x[group_zong_SVR_Amide_batch2==2,1:3]
+
+dist.QCSVR.Batch2 <- dist(pc.QCSVR_batch2_select,method ="euclidean")
+dist.QCSVR.Batch2<-as.matrix(dist.QCSVR.Batch2)
+sum(dist.QCSVR.Batch2)/(25*25-25)
+
+#### 样本之间距离
+pc.QCSVR_batch2_select<-pc.QCSVR_batch2$x[group_zong_SVR_Amide_batch2!=2,1:3]
+
+dist.QCSVR.Batch2 <- dist(pc.QCSVR_batch2_select,method ="euclidean")
+dist.QCSVR.Batch2<-as.matrix(dist.QCSVR.Batch2)
+sum(dist.QCSVR.Batch2)/(192*192-192)
+
+
+### 筛变量
+univariate_QCSVR_Amide_Batch2 <-var_select(data=data.Amide.batch2.sample.SVR,label=group_batch2_Amide_sample,t.test=F,Wilcox=T,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_QCSVR_Amide_Batch2<-rownames(univariate_QCSVR_Amide_Batch2[univariate_QCSVR_Amide_Batch2$VIP>1&univariate_QCSVR_Amide_Batch2$P_wilcox<0.05,])
+
+
+### 判别
+svm.model.QCSVR.Amide.Batch2<-SVM_MODEL(X=data.Amide.batch2.sample.SVR[,var_select_QCSVR_Amide_Batch2],Y=group_batch2_Amide_sample,kernel="radial",kfold=5,seed=123)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_QCSVR_Batch2 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.batch2.sample.SVR[,var_select_QCSVR_Amide_Batch2],Y=group_batch2_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_QCSVR_Batch2 <- c(auc_svm_5fold_100times_QCSVR_Batch2,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_QCSVR_Amide_Batch2<-correlation(data.Amide.stat_order_batch2_QC,data.Amide.batch2.QC.SVR,method="pearson")
+mean(corr_QCSVR_Amide_Batch2$V3)
+mean(corr_QCSVR_Amide_Batch2$V4)
+
+
+#########################################################################
+############### 单个批次数据的批次效应移除: Batch3  #############
+############## 原始数据
+data.Amide.stat_order_batch3 <- data.Amide.stat_order[batch_zong_Amide==3,]
+group_batch3_Amide <- group_zong_Amide[batch_zong_Amide==3]
+Injection_order_batch3 <- c(1:nrow(data.Amide.stat_order_batch3))
+
+# 分离出生物学样本
+group_batch3_Amide_sample <- group_batch3_Amide[group_batch3_Amide!=2]
+data.Amide.stat_order_batch3_sample <- data.Amide.stat_order_batch3[group_batch3_Amide!=2,]
+data.Amide.stat_order_batch3_QC <- data.Amide.stat_order_batch3[group_batch3_Amide==2,]
+
+
+####### PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch3/PCA得分图/PCA得分图_Batch3_Original.tiff",type="jpeg",res=500)
+pca(data=data.Amide.stat_order_batch3,id=group_batch3_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+#### QC之间距离
+pc.Original_batch3<-prcomp(data.Amide.stat_order_batch3,scale.=T)
+pc.Original_batch3_select<-pc.Original_batch3$x[group_batch3_Amide==2,1:3]
+
+dist.Original.Batch3 <- dist(pc.Original_batch3_select,method ="euclidean")
+dist.Original.Batch3<-as.matrix(dist.Original.Batch3)
+sum(dist.Original.Batch3)/(24*24-24)
+
+#### 样本之间距离
+pc.Original_batch3_select<-pc.Original_batch3$x[group_batch3_Amide!=2,1:3]
+
+dist.Original.Batch3 <- dist(pc.Original_batch3_select,method ="euclidean")
+dist.Original.Batch3<-as.matrix(dist.Original.Batch3)
+sum(dist.Original.Batch3)/(184*184-184)
+
+### 筛变量
+univariate_Original_Amide_Batch3 <-var_select(data=data.Amide.stat_order_batch3_sample,label=group_batch3_Amide_sample,t.test=F,Wilcox=T,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_Original_Amide_Batch3<-rownames(univariate_Original_Amide_Batch3[univariate_Original_Amide_Batch3$VIP>1&univariate_Original_Amide_Batch3$P_wilcox<0.05,])
+
+### 判别
+#svm.model.original.Amide.Batch3<-SVM_MODEL(X=data.Amide.stat_order_batch3_sample[,var_select_Original_Amide_Batch3],Y=group_batch3_Amide_sample,kernel="radial",kfold=5)
+
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_Original_Batch3 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.stat_order_batch3_sample[,var_select_Original_Amide_Batch3],Y=group_batch3_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_Original_Batch3 <- c(auc_svm_5fold_100times_Original_Batch3,AUC_Eachtime)
+  seed=seed+i
+}
+
+###############################
+################# WaveICA_2.0
+data_wave2.0_reconstruct_Amide_batch3 <- WaveICA_2.0(data=data.Amide.stat_order_batch3,Injection_Order=Injection_order_batch3,alpha=0,Cutoff=0.1,K=10)
+data_Amide_batch3_wave2.0 <- data_wave2.0_reconstruct_Amide_batch3$data_wave
+
+data_Amide_batch3_wave2.0_QC <- data_Amide_batch3_wave2.0[group_batch3_Amide==2,]
+data_Amide_batch3_wave2.0_sample <- data_Amide_batch3_wave2.0[group_batch3_Amide!=2,]
+
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch3/PCA得分图/PCA得分图_Batch3_WaveICA2.0.tiff",type="jpeg",res=500)
+pca_new(data=data_Amide_batch3_wave2.0,id=group_batch3_Amide+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+
+
+#### QC之间距离
+pc.WaveICA2.0_batch3<-prcomp(data_Amide_batch3_wave2.0,scale.=T)
+pc.WaveICA2.0_batch3_select<-pc.WaveICA2.0_batch3$x[group_batch3_Amide==2,1:3]
+pc.WaveICA2.0_batch3_select <- pc.WaveICA2.0_batch3_select[-c(1,nrow(pc.WaveICA2.0_batch3_select)),]
+
+dist.WaveICA2.0.Batch3 <- dist(pc.WaveICA2.0_batch3_select,method ="euclidean")
+dist.WaveICA2.0.Batch3<-as.matrix(dist.WaveICA2.0.Batch3)
+sum(dist.WaveICA2.0.Batch3)/(22*22-22)
+
+#### 样本之间距离
+pc.WaveICA2.0_batch3_select<-pc.WaveICA2.0_batch3$x[group_batch3_Amide!=2,1:3]
+
+dist.WaveICA2.0.Batch3 <- dist(pc.WaveICA2.0_batch3_select,method ="euclidean")
+dist.WaveICA2.0.Batch3<-as.matrix(dist.WaveICA2.0.Batch3)
+sum(dist.WaveICA2.0.Batch3)/(184*184-184)
+
+
+### 筛变量
+univariate_wave2.0_Amide_Batch3 <-var_select(data=data_Amide_batch3_wave2.0_sample,label=group_batch3_Amide_sample,t.test=F,Wilcox=T,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_wave2.0_Amide_Batch3<-rownames(univariate_wave2.0_Amide_Batch3[univariate_wave2.0_Amide_Batch3$VIP>1 & univariate_wave2.0_Amide_Batch3$P_wilcox<0.05,])
+
+
+### 判别
+#svm.model.wave2.0.Amide.Batch3<-SVM_MODEL(X=data_Amide_batch3_wave2.0_sample[,var_select_wave2.0_Amide_Batch3],Y=group_batch3_Amide_sample,kernel="radial",kfold=5)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_WaveICA2.0_Batch3 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data_Amide_batch3_wave2.0_sample[,var_select_wave2.0_Amide_Batch3],Y=group_batch3_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_WaveICA2.0_Batch3 <- c(auc_svm_5fold_100times_WaveICA2.0_Batch3,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_wave2.0_Amide_Batch3<-correlation(data.Amide.stat_order_batch3_QC,data_Amide_batch3_wave2.0_QC,method="pearson")
+mean(corr_wave2.0_Amide_Batch3$V3)
+mean(corr_wave2.0_Amide_Batch3$V4)
+
+
+###############################
+################# QC-RLSC
+data_Amide_stat_merge_order_batch3 <- data_Amide_stat_merge_order[data_Amide_stat_merge_order$batch==3,]
+injection.order.Amide.batch3<-data_Amide_stat_merge_order_batch3$injection.order
+injection.order.qc.Amide.batch3<-injection.order.Amide.batch3[data_Amide_stat_merge_order_batch3$group==2]
+injection.order.sample.Amide.batch3<-injection.order.Amide.batch3[data_Amide_stat_merge_order_batch3$group!=2]
+
+
+data.Amide.batch3.QC.RLSC<-matrix(NA,nrow(data.Amide.stat_order_batch3_QC),ncol(data.Amide.stat_order_batch3_QC))
+data.Amide.batch3.sample.RLSC<-matrix(NA,nrow(data.Amide.stat_order_batch3_sample),ncol(data.Amide.stat_order_batch3_sample))
+for (i in (1:ncol(data.Amide.batch3.QC.RLSC))){
+  cat(paste("###########",i,"##############\n"))
+  set.seed(1234)
+  library(e1071)
+  QC.order<-injection.order.qc.Amide.batch3
+  para <- cvMSE(data.Amide.stat_order_batch3_QC[,i],QC.order, begin1 = 0.5,end1 = 1,step1 = 0.1)
+  loess.reg <-loess(data.Amide.stat_order_batch3_QC[,i] ~ QC.order,span = para[2],degree = para[1])
+  #loess.reg <-loess(data.Amide.stat_order_batch3_QC[,i] ~ QC.order)
+  
+  predict.QC <- summary(loess.reg)$fitted
+  
+  data.Amide.batch3.QC.RLSC[,i]<- data.Amide.stat_order_batch3_QC[,i]-predict.QC+median(predict.QC,na.rm=T)
+  
+  predict.sample <-predict(loess.reg,data.frame(QC.order = c(injection.order.sample.Amide.batch3)))
+  
+  
+  data.Amide.batch3.sample.RLSC[,i] <- data.Amide.stat_order_batch3_sample[,i]-predict.sample+median(predict.sample,na.rm=T)
+}
+
+colnames(data.Amide.batch3.sample.RLSC)<-colnames(data.Amide.stat_order_batch3_sample)
+colnames(data.Amide.batch3.QC.RLSC)<-colnames(data.Amide.stat_order_batch3_QC)
+
+
+data.Amide.batch3.zong.RLSC<-rbind(data.Amide.batch3.sample.RLSC,data.Amide.batch3.QC.RLSC)
+
+group_zong_RLSC_Amide_batch3<-c(group_batch3_Amide_sample,rep(2,nrow(data.Amide.batch3.QC.RLSC)))
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch3/PCA得分图/PCA得分图_Batch3_QCRLSC.tiff",type="jpeg",res=500)
+pca(data=data.Amide.batch3.zong.RLSC,id=group_zong_RLSC_Amide_batch3+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+#### QC之间距离
+pc.QCRLSC_batch3<-prcomp(data.Amide.batch3.zong.RLSC,scale.=T)
+pc.QCRLSC_batch3_select<-pc.QCRLSC_batch3$x[group_zong_RLSC_Amide_batch3==2,1:3]
+
+dist.QCRLSC.Batch3 <- dist(pc.QCRLSC_batch3_select,method ="euclidean")
+dist.QCRLSC.Batch3<-as.matrix(dist.QCRLSC.Batch3)
+sum(dist.QCRLSC.Batch3)/(24*24-24)
+
+#### 样本之间距离
+pc.QCRLSC_batch3_select<-pc.QCRLSC_batch3$x[group_zong_RLSC_Amide_batch3!=2,1:3]
+
+dist.QCRLSC.Batch3 <- dist(pc.QCRLSC_batch3_select,method ="euclidean")
+dist.QCRLSC.Batch3<-as.matrix(dist.QCRLSC.Batch3)
+sum(dist.QCRLSC.Batch3)/(184*184-184)
+
+
+### 筛变量
+univariate_QCRLSC_Amide_Batch3 <-var_select(data=data.Amide.batch3.sample.RLSC,label=group_batch3_Amide_sample,t.test=F,Wilcox=T,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_QCRLSC_Amide_Batch3<-rownames(univariate_QCRLSC_Amide_Batch3[which(univariate_QCRLSC_Amide_Batch3$VIP>1&univariate_QCRLSC_Amide_Batch3$P_wilcox<0.05),])
+
+
+### 判别
+svm.model.QCRLSC.Amide.Batch3<-SVM_MODEL(X=data.Amide.batch3.sample.RLSC[,var_select_QCRLSC_Amide_Batch3],Y=group_batch3_Amide_sample,kernel="radial",kfold=5)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_QCRLSC_Batch3 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.batch3.sample.RLSC[,var_select_QCRLSC_Amide_Batch3],Y=group_batch3_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_QCRLSC_Batch3 <- c(auc_svm_5fold_100times_QCRLSC_Batch3,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_QCRLSC_Amide_Batch3<-correlation(data.Amide.stat_order_batch3_QC,data.Amide.batch3.QC.RLSC,method="pearson")
+mean(corr_QCRLSC_Amide_Batch3$V3)
+mean(corr_QCRLSC_Amide_Batch3$V4)
+
+
+##################################
+################# QC-SVR
+data_Amide_stat_merge_order_batch3 <- data_Amide_stat_merge_order[data_Amide_stat_merge_order$batch==3,]
+injection.order.Amide.batch3<-data_Amide_stat_merge_order_batch3$injection.order
+injection.order.qc.Amide.batch3<-injection.order.Amide.batch3[data_Amide_stat_merge_order_batch3$group==2]
+injection.order.sample.Amide.batch3<-injection.order.Amide.batch3[data_Amide_stat_merge_order_batch3$group!=2]
+
+
+data.Amide.batch3.QC.SVR<-matrix(NA,nrow(data.Amide.stat_order_batch3_QC),ncol(data.Amide.stat_order_batch3_QC))
+data.Amide.batch3.sample.SVR<-matrix(NA,nrow(data.Amide.stat_order_batch3_sample),ncol(data.Amide.stat_order_batch3_sample))
+for (i in (1:ncol(data.Amide.batch3.QC.SVR))){
+  cat(paste("###########",i,"##############\n"))
+  set.seed(1234)
+  library(e1071)
+  QC.order<-injection.order.qc.Amide.batch3
+  
+  qc.temp<-data.Amide.stat_order_batch3_QC[,i]
+  
+  #qc.temp<-log(data.Amide.stat_order_batch3_QC[,i]+1,base=2)
+  # epsilon<-0.075*median(qc.temp)
+  # C=quantile(qc.temp,0.9,na.rm=T)-quantile(qc.temp,0.1,na.rm=T)
+  # try(model.tune<-tune.svm(x=QC.order,y=qc.temp,epsilon=epsilon,cost=C,gamma=2^(-3:6),kernel ="radial"),silent=T)
+  # best<-model.tune$best.parameters
+  # best.gamma<-best[1]
+  svr.reg <- e1071::svm(x=QC.order,y=qc.temp,kernel ="radial")
+  predict.QC <- summary(svr.reg)$fitted
+  
+  
+  data.Amide.batch3.QC.SVR[,i]<- qc.temp-predict.QC+median(predict.QC,na.rm=T)
+  
+  predict.sample <- predict(svr.reg,injection.order.sample.Amide.batch3)
+  
+  
+  data.Amide.batch3.sample.SVR[,i] <- data.Amide.stat_order_batch3_sample[,i]-predict.sample+median(predict.sample,na.rm=T)
+}
+
+colnames(data.Amide.batch3.sample.SVR)<-colnames(data.Amide.stat_order_batch3_sample)
+colnames(data.Amide.batch3.QC.SVR)<-colnames(data.Amide.stat_order_batch3_QC)
+
+
+data.Amide.batch3.zong.SVR<-rbind(data.Amide.batch3.sample.SVR,data.Amide.batch3.QC.SVR)
+
+group_zong_SVR_Amide_batch3<-c(group_batch3_Amide_sample,rep(2,nrow(data.Amide.batch3.QC.SVR)))
+
+########## PCA得分图
+bitmap("WaveICA 2.0/结果/单个批次结果/Batch3/PCA得分图/PCA得分图_Batch3_QCSVR.tiff",type="jpeg",res=500)
+pca(data=data.Amide.batch3.zong.SVR,id=group_zong_SVR_Amide_batch3+1,plot=2,label=c("CE","CRC","QC"))
+dev.off()
+
+
+#### QC之间距离
+pc.QCSVR_batch3<-prcomp(data.Amide.batch3.zong.SVR,scale.=T)
+pc.QCSVR_batch3_select<-pc.QCSVR_batch3$x[group_zong_SVR_Amide_batch3==2,1:3]
+
+dist.QCSVR.Batch3 <- dist(pc.QCSVR_batch3_select,method ="euclidean")
+dist.QCSVR.Batch3<-as.matrix(dist.QCSVR.Batch3)
+sum(dist.QCSVR.Batch3)/(24*24-24)
+
+#### 样本之间距离
+pc.QCSVR_batch3_select<-pc.QCSVR_batch3$x[group_zong_SVR_Amide_batch3!=2,1:3]
+
+dist.QCSVR.Batch3 <- dist(pc.QCSVR_batch3_select,method ="euclidean")
+dist.QCSVR.Batch3<-as.matrix(dist.QCSVR.Batch3)
+sum(dist.QCSVR.Batch3)/(184*184-184)
+
+
+### 筛变量
+univariate_QCSVR_Amide_Batch3 <-var_select(data=data.Amide.batch3.sample.SVR,label=group_batch3_Amide_sample,t.test=F,Wilcox=T,AUC=F,FDR=T,VIP=T,FC=F,comps=3)
+var_select_QCSVR_Amide_Batch3<-rownames(univariate_QCSVR_Amide_Batch3[univariate_QCSVR_Amide_Batch3$VIP>1&univariate_QCSVR_Amide_Batch3$P_wilcox<0.05,])
+
+
+### 判别
+svm.model.QCSVR.Amide.Batch3<-SVM_MODEL(X=data.Amide.batch3.sample.SVR[,var_select_QCSVR_Amide_Batch3],Y=group_batch3_Amide_sample,kernel="radial",kfold=5,seed=123)
+
+## SVM五折交叉验证重复100次
+auc_svm_5fold_100times_QCSVR_Batch3 <- c()
+seed=1234
+for (i in 1:100){
+  cat(paste("####################",i,"Times########################\n"))
+  svm.model.Amide.Eachtime<-SVM_MODEL(X=data.Amide.batch3.sample.SVR[,var_select_QCSVR_Amide_Batch3],Y=group_batch3_Amide_sample,kernel="radial",kfold=5,seed=seed)
+  AUC_Eachtime <- svm.model.Amide.Eachtime$auc
+  auc_svm_5fold_100times_QCSVR_Batch3 <- c(auc_svm_5fold_100times_QCSVR_Batch3,AUC_Eachtime)
+  seed=seed+i
+}
+
+## QC相关系数
+corr_QCSVR_Amide_Batch3<-correlation(data.Amide.stat_order_batch3_QC,data.Amide.batch3.QC.SVR,method="pearson")
+mean(corr_QCSVR_Amide_Batch3$V3)
+mean(corr_QCSVR_Amide_Batch3$V4)
+
+

@@ -1,0 +1,46 @@
+\name{WaveICA 2.0}
+\alias{WaveICA 2.0}
+\title{WaveICA 2.0 method to remove batch effects}
+\usage{
+WaveICA_2.0(data,Injection_Order,alpha=0,Cutoff=0.1,K=10)
+}
+\arguments{
+\item{data}{Sample-by-Peak matrix untargeted metabolomics data.}
+\item{wf}{Wavelet functions. The default is "haar".}
+\item{Injection_Order}{Injection Order of samples.}
+\item{alpha}{The trade-off value between the independence of samples and those of variables in ICA, and should be between 0 and 1.The default is 0.}
+\item{Cutoff}{The threshold of the variation explained by the injection order for independent components. It should be between 0 and 1.}
+\item{K}{The maximal component that ICA decomposes. The default is 10.}
+
+}
+\value{
+A list that contains the clean data.
+}
+\description{
+WaveICA 2.0 method to remove inter-batch and intra-batch effects for untargeted metabolomics data without using batch information.
+}
+\examples{
+## load the demo data
+data(Amide_data, package = "WaveICA")
+
+### Data management for original data
+Amide_data_order <- Amide_data[order(Amide_data$Injection_order),]
+data_Amide_order <- Amide_data_order[,-c(1:3)]
+### Generating group and batch
+Amide_data_order$group[Amide_data_order$group=="QC"] <- 2
+group_zong_Amide<-as.numeric(Amide_data_order$group)
+Injection_order<-Amide_data_order$Injection_order
+
+############### run WaveICA2.0
+data_wave2.0_reconstruct_Amide <- WaveICA_2.0(data=data_Amide_order,Injection_Order=Injection_order,alpha=0,Cutoff=0.1,K=10)
+data_Amide_zong_wave2.0 <- data_wave2.0_reconstruct_Amide$data_wave
+
+# Obtaining subject samples and QC samples
+data_Amide_sample_wave2.0 <- data_Amide_zong_wave2.0[group_zong_Amide!=2,]
+data_Amide_qc_wave2.0<-data_Amide_zong_wave2.0[group_zong_Amide==2,]
+
+}
+\author{
+Kui deng
+\email{dengkui_stat@163.com}
+}

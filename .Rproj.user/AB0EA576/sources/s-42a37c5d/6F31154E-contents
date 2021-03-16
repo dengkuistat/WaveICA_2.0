@@ -1,0 +1,11 @@
+Package: WaveICA2.0
+Type: Package
+Title: WaveICA 2.0
+Version: 0.1.0
+Author: Kui Deng and Kang Li
+Maintainer: Kui Deng <dengkui_stat@163.com>
+Description: The improved version of WaveICA method to remove batch effects for untargeted metabolomics data without using batch information.
+License: No
+Encoding: UTF-8
+LazyData: true
+Imports: waveslim, parallel, ica,mgcv 
