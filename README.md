@@ -10,4 +10,4 @@ devtools::install_github("dengkuistat/WaveICA_2.0",host="https://api.github.com"
 When using this method, please cite as: 
 Deng, K., Zhao, F., Rong, Z. et al. WaveICA 2.0: a novel batch effect removal method for untargeted metabolomics data without using batch information. Metabolomics 17, 87 (2021). https://doi.org/10.1007/s11306-021-01839-7
 
-If you have any questions, please contact me. Email: dengkui_stat@163.com or dengkui@westlake.edu.cn
+If you have any questions, please contact me. Email: dengkui_stat@163.com
